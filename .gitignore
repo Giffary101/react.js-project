@@ -1,0 +1,10 @@
+# Mengabaikan pustaka unduhan
+node_modules/
+
+# Mengabaikan berkas basis data lokal
+*.sqlite
+sistem_login.sqlite
+
+# Mengabaikan berkas log dan sistem
+.env
+npm-debug.log
