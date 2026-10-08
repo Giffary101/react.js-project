@@ -22,51 +22,74 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 2. Rute API: Proses Login
-    if (req.url === '/api/login' && req.method === 'POST') {
-        let body = '';
+// Rute API Login
+  if (req.url === '/api/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    
+    req.on('end', () => {
+      const { username, password } = JSON.parse(body);
+
+      // Kueri untuk mencari kecocokan akun di SQLite
+      const query = `SELECT * FROM users WHERE username = ? AND password = ?`;
+      
+      db.get(query, [username, password], (err, row) => {
+        if (err) {
+          console.error("Galat saat login:", err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Terjadi kesalahan pada peladen.' }));
+        }
         
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
+        if (row) {
+          // Jika 'row' berisi data, berarti kombinasi username & password ditemukan
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ message: 'Login berhasil', user: row.username }));
+        } else {
+          // Jika 'row' kosong (undefined), berarti kredensial salah atau tidak ada
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Kredensial tidak valid' }));
+        }
+      });
+    });
+    return;
+  }
 
-        req.on('end', () => {
-            const data = JSON.parse(body);
+    // Rute API Registrasi
+  if (req.url === '/api/register' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    
+    req.on('end', () => {
+      const { username, password } = JSON.parse(body);
 
-            // Melakukan kueri ke SQLite untuk mencari pengguna berdasarkan username
-            const kueri = `SELECT * FROM pengguna WHERE username = ?`;
-            
-            // Menggunakan db.get untuk mengambil satu baris data spesifik
-            db.get(kueri, [data.username], (err, barisData) => {
-                if (err) {
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ pesan: 'Terjadi kesalahan pada basis data' }));
-                    return;
-                }
+      // Mencegah input kosong
+      if (!username || !password) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Nama pengguna dan kata sandi wajib diisi.' }));
+      }
 
-                // Mengecek apakah pengguna ditemukan (barisData ada) dan password cocok
-                if (barisData && barisData.password === data.password) {
-                    const token = 'sesi-' + Date.now();
-                    const waktuKedaluwarsa = Date.now() + (2 * 60 * 1000); 
-                    
-                    sesiPengguna[token] = {
-                        username: barisData.username,
-                        batasWaktu: waktuKedaluwarsa
-                    };
-
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ 
-                        pesan: 'Login berhasil', 
-                        token: token 
-                    }));
-                } else {
-                    res.writeHead(401, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ pesan: 'Nama pengguna atau kata sandi salah' }));
-                }
-            });
-        });
-        return;
-    }
+      // Mengeksekusi kueri penambahan data
+      const query = `INSERT INTO users (username, password) VALUES (?, ?)`;
+      
+      db.run(query, [username, password], function(err) {
+        if (err) {
+          // Tambahkan baris ini untuk mencetak galat murni ke terminal backend
+          console.error("Bocoran Kesalahan SQLite:", err.message); 
+          
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Nama pengguna sudah digunakan atau terjadi kesalahan.' }));
+        }
+        
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ message: 'Akun berhasil dibuat! Silakan masuk.' }));
+      });
+    });
+    return;
+  }
 
     // 3. Rute API: Pengecekan Status Sesi (Otomatisasi Logout)
     // Rute ini dapat dipanggil oleh antarmuka React untuk memastikan pengguna masih boleh mengakses halaman
